@@ -2,37 +2,42 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
 from uuid import uuid4
+import os
 import json
 import pprint
 import time
 import random
 import requests
-import logging
-
+import string
 
 class Scraper:
     '''
     This class is used to represent the scraper.
 
     Attributes:
-        path (str): the path in which the chromedriver is installed
-        driver (): this asttribute stores
-        page_url (string): this attribute stores the link for the page I want to load and scrape
+        path (string): the path in which the chromedriver is installed
+        driver (): an open source tool (the driver I used is specifically for Chrome)
+        for automated testing of webapps across many browsers
+        page_url (string): the link for the page I want to load and scrape
         dict_for_anime (dict): a dictionary for each anime
-        mass_dict (list): a list of dictionaries 
+        mass_dict (list): a list of dictionaries
     '''
+    
     def __init__(self):
         '''See help(Scraper) for accurate signature'''
-        self.options = Options()
-        self.options.add_argument('--headless')
-        self.options.add_argument('--disable-gpu')
-        self.options.add_argument('--log-level=2')
-        self.logging = logging.getLogger('selenium.webdriver.remote.remote_connection')
-        self.logging.setLevel(logging.ERROR)
         self.path = 'C:/Users/Admin/Chrome Driver/chromedriver.exe'
-        self.driver = webdriver.Chrome(self.path, options = self.options)
+        self.driver = webdriver.Chrome(self.path)
         self.page_url = 'https://www.imdb.com/search/keyword/?keywords=anime&sort=user_rating,desc&mode=detail&page=1'
-        self.dict_for_anime = {'ID': '', 'Image Link': [], 'Title': '', 'Details': [], 'Ratings': [], 'Summary': [],  'URL': [], 'Timestamp': ''}
+        self.dict_for_anime = {
+            'ID': '', 
+            'Image Link': [], 
+            'Title': '', 
+            'Details': [], 
+            'Ratings': [], 
+            'Summary': [], 
+            'URL': [], 
+            'Timestamp': ''
+        }
         self.mass_dict = [{}]
 
     def __load_page_to_scrape(self):
@@ -45,9 +50,7 @@ class Scraper:
         try:
             accept_cookies_button = self.driver.find_element(By.XPATH, '//button[text()="Accept Cookies"]')
             accept_cookies_button.click()
-        except Exception as e:
-            print(e)
-        else:
+        except:
             pass
 
     def __create_list_of_website_links(self):
@@ -65,7 +68,6 @@ class Scraper:
             a_tag = animes.find_element(by=By.TAG_NAME, value='a')
             link = a_tag.get_attribute('href')
             link_list.append(link)
-            self.logging.info(link_list)
         return link_list
 
     def __getting_a_link(self):
@@ -73,13 +75,14 @@ class Scraper:
         anime = self.driver.find_element(by=By.XPATH, value='//*[@class="lister-item-content"]') 
         a_tag = anime.find_element(by=By.TAG_NAME, value='a')
         anime_link = a_tag.get_attribute('href')
-        self.dict_for_anime['URL'].append(anime_link)
+        self.dict_for_anime['URL'] = (anime_link)
         return anime_link
     
-    def generate_a_random_link_to_scrape(self, link_list):
+    def __generate_a_random_link_to_scrape(self, link_list):
         """ This method picks a random link from the crawler list we created earlier """
         random_link = random.choice(link_list)
-        self.dict_for_anime['URL'].append(random_link)
+        self.dict_for_anime['URL'] = (random_link)
+        return random_link
     
     def __create_unique_id_for_each_anime(self):
         """
@@ -102,25 +105,63 @@ class Scraper:
         method is that the timestamp to be dynamic, rather than being a stationary value.
         """
         t = time.localtime()
-        timestamp =  time.strftime('%Y-%m-%d %H:%M:%S', t)
+        timestamp =  time.strftime('%d-%m-%Y %H:%M:%S', t)
         self.dict_for_anime['Timestamp'] = timestamp
-        return timestamp
+        title_no_punct = timestamp.translate(str.maketrans('', '', string.punctuation))
+        self.timestamp_no_space = title_no_punct.replace(" ", "")
+        return timestamp, self.timestamp_no_space
     
-    def __extract_data_from_anime_link(self, anime_url) :
+    def __extract_data_from_anime_link(self, anime_url):
+        '''
+        This method extracts all the relevant information from the page.
+
+        The purpose of this method is to extract all the information we would want to store 
+        in our local dictionary. It is also important that we extract all the information so 
+        that we can use this information in other methods, such as downloading our images, and 
+        creating folder for each anime title and storing their respective dictionaries.
+        '''
         time.sleep(4)
         driver = self.driver
         driver.get(anime_url)
         driver.maximize_window()
         time.sleep(4)
-        title = self.driver.find_element(by=By.XPATH, value='//h1[@data-testid="hero-title-block__title"]').text 
-        self.dict_for_anime['Title'] = title
-        details_of_anime = self.driver.find_element(by=By.XPATH, value='//*[@data-testid="hero-title-block__metadata"]').text
-        self.dict_for_anime['Details'].append(details_of_anime)
-        rating_of_anime = self.driver.find_element(by=By.XPATH, value='//div[@class="sc-7ab21ed2-2 kYEdvH"]').text
-        self.dict_for_anime['Ratings'] = details_of_anime
+        try:
+            title = self.driver.find_element(by=By.XPATH, value='//h1[@data-testid="hero-title-block__title"]').text 
+            self.dict_for_anime['Title'] = title
+        except:
+            pass
+        details = self.driver.find_element(by=By.XPATH, value='//*[@data-testid="hero-title-block__metadata"]').text
+        details_of_anime = details.replace("\n", ",").strip()
+        self.dict_for_anime['Details'] = (details_of_anime)
+        genre = driver.find_element(by=By.XPATH, value='//div[@class="ipc-chip-list__scroller"]').text.strip()
+        genre_of_anime = genre.replace("\n", ",").strip()
+        self.dict_for_anime['Genre'] = genre_of_anime
+        rating = driver.find_element(by=By.XPATH, value='//div[@class="sc-7ab21ed2-2 kYEdvH"]').text
+        rating_of_anime = rating.replace("\n", "").strip()
+        try:
+            popularity = driver.find_element(by=By.XPATH, value='//div[@data-testid="hero-rating-bar__popularity__score"]').text
+            self.dict_for_anime['Popularity'] = popularity
+        except:
+            popularity = 'N/A'
+            self.dict_for_anime['Popularity'] = popularity
+        self.dict_for_anime['Ratings'] = rating_of_anime
         storyline = self.driver.find_element(by=By.XPATH, value='//div[@class="ipc-html-content-inner-div"]').text
-        self.dict_for_anime['Summary'].append(storyline)
-        return title, details_of_anime, rating_of_anime, storyline
+        self.dict_for_anime['Summary'] = (storyline)
+        title_no_punct = title.translate(str.maketrans('', '', string.punctuation))
+        self.title_no_space = title_no_punct.replace(" ", "")
+        return title, details_of_anime, genre, rating_of_anime, popularity, storyline, self.title_no_space
+
+    def __create_folder(self, directory):
+        """ This method creates a folder
+        
+        The purpose of this method is to create a folder, in the raw_data directory,
+        that would store the image and the dictionary for each anime
+        """
+        try:
+            if not os.path.exists(directory):
+                os.makedirs(directory)
+        except OSError:
+            print ('Error: Creating directory. ' +  directory)
 
     def __display_anime_dictionary(self):
         """ This method prints the anime dictionary, and adds the anime dictionary to the 
@@ -142,7 +183,7 @@ class Scraper:
         anime2 = self.driver.find_element(by=By.XPATH, value='//div[@class="ipc-poster ipc-poster--baseAlt ipc-poster--dynamic-width sc-d383958-0 gvOdLN celwidget ipc-sub-grid-item ipc-sub-grid-item--span-2"]') 
         a = anime2.find_element(by=By.TAG_NAME, value='a')
         image_url = a.get_attribute('href')
-        self.dict_for_anime['Image Link'].append(image_url)
+        self.dict_for_anime['Image Link'] = (image_url)
         return image_url
 
     def __download_image(self, image_url, filepath):
@@ -158,7 +199,7 @@ class Scraper:
 
     def __save__each_anime_dictionary_to_json(self, object_to_dump, filepath):
         """ 
-        This method stores the dictionary for the anime
+        This method stores the dictionary for the each anime in a json file
         
         This method takes two arguments, the image link we gathered from the previous method,
         and the filepath where we would like the image 
@@ -168,18 +209,25 @@ class Scraper:
             json.dump(object_to_dump, outfile, indent=2)
     
     def __navigating_the_page_url(self):
+        """ 
+        This method navigates the page
+        
+        The purpose of this method is to navigate the page. This functions scrolls down to the bottom
+        of the page and  
+        """
         time.sleep(2)
         self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
         time.sleep(2)
-        next_button = self.driver.find_element(by=By.XPATH, value='//*[@class="lister-page-next next-page"]')
         footer_of_page = self.driver.find_element(by=By.XPATH, value='//*[@class="footer filmosearch"]')
-        footer_next_page_link = footer_of_page.find_element(by=By.TAG_NAME, value='a')
+        footer_next_page_link = footer_of_page.find_element(by=By.XPATH, value='//a[@class="lister-page-next next-page"]')
         next_page = footer_next_page_link.get_attribute('href')
         self.driver.get(next_page)
         time.sleep(3)
     
-#Since I have created all the functions I need for my code to run, I shall tidy it up my code.
-#I shall create new methods that group together various method
+    '''
+        Since I have created all the functions I need for my code to run, I shall tidy it up my code.
+        I shall create new methods that group together various method
+    '''
 
     def load_page_and_bypass_cookies(self):
         self.__load_page_to_scrape()
@@ -194,21 +242,35 @@ class Scraper:
         self.image_link = self.__extract_image_url_for_each_anime()
         self.__display_anime_dictionary()
 
-    def get_json_file_and_download_image(self):
-        self.__save__each_anime_dictionary_to_json(self.dict_for_anime, '/id_bleach/data.json')
-        self.__download_image(self.image_link, '/id_bleach/23112022_152410_1.jpg') 
+    def get_random_link_extract_all_data_displat_dict(self):
+        self.list_of_limks = self.__create_list_of_website_links()
+        anime_url = self.__generate_a_random_link_to_scrape(self.list_of_limks)
+        self.__create_unique_id_for_each_anime()
+        self.__extract_data_from_anime_link(anime_url)
+        self.__timestamp()
+        self.image_link = self.__extract_image_url_for_each_anime()
+        self.__display_anime_dictionary()
+
+    def create_folder_get_json_file_and_download_image(self):
+        self.__create_folder('./raw_data/id_{}'.format(self.title_no_space))
+        self.__save__each_anime_dictionary_to_json(self.dict_for_anime,'id_{}/data.json'.format(self.title_no_space, self.title_no_space))
+        self.__download_image(self.image_link, 'id_{}/{}_{}_1.jpg'.format(self.title_no_space, self.timestamp_no_space[:8], self.timestamp_no_space[9:]))
 
     def navigate_and_go_to_next_page(self):
         self.__navigating_the_page_url()
 
-def scraping_method():
+def ScrapingMethod(page_url):
 
     scrape = Scraper()
     scrape.load_page_and_bypass_cookies()
     scrape.get_link_extract_all_data_display_dict()
-    scrape.get_json_file_and_download_image()
+    scrape.create_folder_get_json_file_and_download_image()
+    scrape.navigate_and_go_to_next_page()
+    scrape.get_random_link_extract_all_data_displat_dict()
+    scrape.create_folder_get_json_file_and_download_image()
     scrape.navigate_and_go_to_next_page()
     scrape.driver.close()
 
 if __name__ == '__main__':
-    scraping_method()
+    page_url = 'https://www.imdb.com/search/keyword/?keywords=anime&sort=user_rating,desc&mode=detail&page=1'
+    ScrapingMethod(page_url)

@@ -88,7 +88,7 @@ class Scraper:
         self.dict_for_anime['URL'].append(anime_link)
         return anime_link
     
-    def generate_a_random_link_to_scrape(self, link_list):
+    def __generate_a_random_link_to_scrape(self, link_list):
         """ This method picks a random link from the crawler list we created earlier """
         random_link = random.choice(link_list)
         self.dict_for_anime['URL'].append(random_link)
@@ -228,8 +228,9 @@ class Scraper:
         self.driver.get(next_page)
         time.sleep(3)
     
-    ''' Since I have created all the functions I need for my code to run, I shall tidy it up my code by.
-        creating new methods that group together various method. This creates '''
+    ''' Since I have created all the functions I need for my code to run, I shall clean it up my code by.
+        creating new methods that group together various methods. This will allow me to call a few methods
+        that do the low level methods. '''
 
     
     def load_page_and_bypass_cookies(self):
